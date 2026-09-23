@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一键字幕（开源版）· 本地离线 AI 字幕工具</title>
+<style>
+  @font-face {
+    font-family: "Source Han Sans SC";
+    src: url("fonts/SourceHanSansSC-Regular.otf") format("opentype");
+    font-weight: 400;
+  }
+  @font-face {
+    font-family: "Source Han Sans SC";
+    src: url("fonts/SourceHanSansSC-Bold.otf") format("opentype");
+    font-weight: 700;
+  }
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --border: #e3e6eb; --text: #1c2128;
+    --muted: #6b7280; --accent: #2563eb; --accent-soft: #eff4ff;
+    --danger: #dc2626; --radius: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Source Han Sans SC", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px; background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  .topbar h1 { font-size: 17px; font-weight: 700; }
+  .topbar .model-tag {
+    font-size: 12px; color: var(--muted); background: var(--accent-soft);
+    border: 1px solid var(--border); padding: 3px 10px; border-radius: 999px;
+  }
+  .layout {
+    display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+    gap: 18px; padding: 18px 28px; max-width: 1400px; margin: 0 auto;
+    align-items: start;
+  }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    font-size: 14px; font-weight: 600;
+  }
+  .upload-zone {
+    margin: 16px; padding: 52px 24px; text-align: center;
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .upload-zone:hover, .upload-zone.drag {
+    border-color: var(--accent); background: var(--accent-soft); color: var(--accent);
+  }
+  .upload-zone .big { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .upload-zone .hint { font-size: 12.5px; }
+  .progress-wrap { margin: 16px; display: none; }
+  .progress-wrap.show { display: block; }
+  .progress-label { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  .progress-bar { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+  .progress-bar i {
+    display: block; height: 100%; width: 30%;
+    background: var(--accent); border-radius: 4px; animation: slide 1.2s ease-in-out infinite;
+  }
+  @keyframes slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+  }
+  .error-box {
+    margin: 0 16px 16px; padding: 10px 14px; display: none;
+    background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+    color: var(--danger); font-size: 13px; word-break: break-all;
+  }
+  .error-box.show { display: block; }
+  .error-box.ok { background: #ecfdf5; border-color: #a7f3d0; color: #15803d; }
+  .draft-box {
+    margin: 0 16px 16px; padding: 10px 14px; display: none;
+    background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px;
+    color: #92400e; font-size: 12.5px;
+  }
+  .draft-box.show { display: block; }
+  .draft-box button { margin-left: 8px; }
+  .stage { position: relative; background: #000; display: none; }
+  .stage.show { display: block; }
+  .stage video { display: block; width: 100%; max-height: 480px; }
+  .caption-overlay {
+    position: absolute; left: 0; right: 0; bottom: 8%;
+    display: flex; justify-content: center; padding: 0 6%; pointer-events: none;
+  }
+  .caption-overlay span {
+    text-align: center; white-space: pre-wrap; max-width: 100%;
+    word-break: break-word; font-size: 26px; font-weight: 700; color: #fff;
+    text-shadow: 0 0 4px #000, 1px 1px 3px rgba(0,0,0,.9), -1px -1px 3px rgba(0,0,0,.9);
+  }
+  .seg-tools .mini { margin-left: 8px; }
+  .seg-toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+    border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); flex-wrap: wrap;
+  }
+  .seg-toolbar input[type="number"] {
+    width: 66px; padding: 4px 6px; border: 1px solid var(--border);
+    border-radius: 6px; font-size: 12.5px; background: var(--bg); color: var(--text);
+  }
+  .st-hint { font-size: 11px; opacity: .8; }
+  .seg-list { max-height: 560px; overflow-y: auto; }
+  .empty-tip { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13.5px; }
+  .seg-item {
+    display: grid; grid-template-columns: 22px 86px 1fr; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--border); align-items: start;
+  }
+  .seg-item:last-child { border-bottom: none; }
+  .seg-item.current { background: var(--accent-soft); }
+  .seg-check { width: 15px; height: 15px; margin-top: 8px; cursor: pointer; accent-color: var(--accent); }
+  .seg-time {
+    font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums;
+    cursor: pointer; padding-top: 7px; white-space: nowrap;
+  }
+  .seg-time:hover { color: var(--accent); }
+  .seg-time-row { display: flex; align-items: center; gap: 6px; }
+  .split-btn { font-size: 11px; color: var(--muted); cursor: pointer; background: none; border: none; padding: 0; }
+  .split-btn:hover { color: var(--accent); }
+  .seg-time-adjust { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
+  .ta-btn {
+    font-size: 10.5px; padding: 2px 5px; border: 1px solid var(--border);
+    border-radius: 4px; background: none; color: var(--muted); cursor: pointer; line-height: 1.3;
+  }
+  .ta-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .seg-text {
+    width: 100%; border: 1px solid transparent; background: transparent;
+    padding: 5px 8px; font-size: 13.5px; color: var(--text);
+    border-radius: 6px; resize: vertical; min-height: 34px;
+    font-family: inherit; line-height: 1.5;
+  }
+  .seg-text:hover { border-color: var(--border); }
+  .seg-text:focus { border-color: var(--accent); background: #fff; outline: none; }
+  .export-bar { padding: 12px 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    flex: 1; padding: 9px 0; border: none; border-radius: 8px;
+    font-size: 13.5px; font-weight: 600; cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.ghost { background: #fff; color: var(--text); border: 1px solid var(--border); }
+  .btn.ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .mini {
+    padding: 4px 10px; font-size: 12px; border: 1px solid var(--border);
+    border-radius: 6px; background: var(--bg); color: var(--muted); cursor: pointer;
+  }
+  .mini:hover { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; padding: 14px; }
+    .seg-list { max-height: 400px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <h1>一键字幕 <span style="font-size:12px;color:var(--muted);font-weight:400;">开源版 · 本地离线</span></h1>
+  <span class="model-tag" id="modelTag">模型未加载</span>
+</header>
+
+<main class="layout">
+  <section>
+    <div class="panel">
+      <div class="panel-head"><span>视频预览</span></div>
+      <div class="upload-zone" id="uploadZone">
+        <div class="big">点击或拖入视频 / 音频文件</div>
+        <div class="hint">mp4 / mov / mkv / webm / mp3 / wav · 全程本地处理，视频不上传</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;justify-content:center;">
+          <label style="font-size:12px;color:var(--muted);margin:0;">识别语言</label>
+          <select id="langSelect" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);font-size:12px;">
+            <option value="auto">自动检测</option>
+            <option value="zh">中文</option>
+            <option value="en">English</option>
+          </select>
+        </div>
+      </div>
+      <input type="file" id="fileInput" accept="video/*,audio/*" hidden>
+      <div class="progress-wrap" id="progressWrap">
+        <div class="progress-label" id="progressLabel">正在本地识别，请稍候...</div>
+        <div class="progress-bar"><i></i></div>
+      </div>
+      <div class="error-box" id="errorBox"></div>
+      <div class="draft-box" id="draftBox"></div>
+      <div class="stage" id="stage">
+        <video id="video" controls></video>
+        <div class="caption-overlay"><span id="captionText"></span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <span>字幕编辑 <span id="segCount" style="color:var(--muted);font-weight:400;font-size:12px;"></span></span>
+      <span class="seg-tools">
+        <button class="mini" id="mergeSel" disabled title="勾选左侧方框选中多句，合并成一句（时间取首句起点~末句终点）">合并选中 (0)</button>
+      </span>
+    </div>
+    <div class="seg-toolbar">
+      <span>⏱ 整体偏移</span>
+      <input type="number" id="timeOffset" step="0.1" value="0" min="-30" max="30" title="正数=全部延后，负数=全部提前">
+      <span>秒</span>
+      <button class="mini" id="applyOffset" title="把全部字幕时间 ± 输入秒数（解决整片字幕延迟/提前）">应用全部</button>
+      <button class="mini" id="clearOffset">清空</button>
+      <span class="st-hint">右侧 ◀0.1▶ 整句平移 · −长/+长 调时长</span>
+    </div>
+    <div class="seg-list" id="segList">
+      <div class="empty-tip">导入视频并识别后，字幕会出现在这里，点击文字即可修改</div>
+    </div>
+    <div class="export-bar">
+      <button class="btn primary" id="exportSrt" disabled>导出 SRT</button>
+      <button class="btn ghost" id="exportTxt" disabled>导出文本</button>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function apiFetch(url, options = {}, timeoutMs = 0) {
+  const ctrl = new AbortController();
+  let timer = null;
+  if (timeoutMs > 0) timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: ctrl.signal });
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* 非 JSON */ }
+    if (!res.ok) throw new Error((data && data.detail) || `请求失败 (HTTP ${res.status})`);
+    return data;
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('请求超时，请检查文件大小或服务状态后重试');
+    if (err instanceof TypeError || /failed to fetch/i.test(String(err)))
+      throw new Error('无法连接服务器（服务未启动），请确认后重试');
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+const state = { segments: [], videoURL: null, jobId: null };
+
+/* ---------- 导入与识别 ---------- */
+const zone = $('uploadZone'), fileInput = $('fileInput');
+zone.addEventListener('click', () => fileInput.click());
+zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+zone.addEventListener('drop', (e) => {
+  e.preventDefault(); zone.classList.remove('drag');
+  if (e.dataTransfer.files.length) startProcess(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) startProcess(fileInput.files[0]);
+  fileInput.value = '';
+});
+
+async function startProcess(file) {
+  hideError();
+  $('progressWrap').classList.add('show');
+  $('progressLabel').textContent = `正在本地识别「${file.name}」...`;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('language', $('langSelect').value);
+  try {
+    if (state.videoURL) URL.revokeObjectURL(state.videoURL);
+    state.videoURL = URL.createObjectURL(file);
+    $('video').src = state.videoURL;
+    $('stage').classList.add('show');
+
+    const data = await apiFetch('/api/upload', { method: 'POST', body: fd }, 600000);
+    if (!data) throw new Error('识别失败');
+
+    state.segments = data.segments;
+    state.jobId = data.job_id;
+    const draft = loadDraft();
+    if (draft && draft.length === state.segments.length
+        && confirm('检测到上次校对的字幕（共 ' + draft.length + ' 条），是否恢复校对文字？')) {
+      state.segments.forEach((s, i) => { s.text = draft[i].text; });
+    }
+    $('modelTag').textContent = `Whisper ${data.model.model_size} · ${data.language} · ${String(data.model.device).toUpperCase()}`;
+    $('draftBox').classList.remove('show');
+    renderSegments();
+    enableExport(true);
+    saveDraft();
+  } catch (err) {
+    showError(err.message || String(err));
+  } finally {
+    $('progressWrap').classList.remove('show');
+  }
+}
+
+function showError(msg) { const b = $('errorBox'); b.textContent = msg; b.classList.add('show'); }
+function hideError() { $('errorBox').classList.remove('show'); }
+
+/* ---------- 字幕列表渲染 ---------- */
+function fmtTime(t) {
+  const m = Math.floor(t / 60), s = Math.floor(t % 60), cs = Math.round((t % 1) * 10);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${cs}`;
+}
+
+function renderSegments() {
+  const list = $('segList');
+  list.innerHTML = '';
+  $('segCount').textContent = state.segments.length ? `共 ${state.segments.length} 条` : '';
+  state.segments.forEach((seg, i) => {
+    const row = document.createElement('div');
+    row.className = 'seg-item';
+    row.dataset.index = i;
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'seg-check';
+    cb.addEventListener('change', updateMergeBtn);
+
+    const timeBox = document.createElement('div');
+    const timeRow = document.createElement('div');
+    timeRow.className = 'seg-time-row';
+    const time = document.createElement('span');
+    time.className = 'seg-time';
+    time.textContent = fmtTime(seg.start);
+    time.title = '点击跳转到该句';
+    time.addEventListener('click', () => { $('video').currentTime = Math.max(seg.start - 0.05, 0); });
+    const split = document.createElement('span');
+    split.className = 'split-btn';
+    split.textContent = '✂拆分';
+    split.title = '把光标放在文字中要断开的位置后点此按钮';
+    split.addEventListener('click', () => splitSegment(i, split));
+    timeRow.append(time, split);
+
+    const adj = document.createElement('div');
+    adj.className = 'seg-time-adjust';
+    [['shiftBack','◀0.1'],['shiftFwd','0.1▶'],['shrink','−长'],['stretch','+长']].forEach(([op, label]) => {
+      const b = document.createElement('button');
+      b.className = 'ta-btn'; b.textContent = label;
+      b.addEventListener('click', () => adjustSegment(i, op));
+      adj.appendChild(b);
+    });
+    timeBox.append(timeRow, adj);
+
+    const ta = document.createElement('textarea');
+    ta.className = 'seg-text'; ta.rows = 1; ta.value = seg.text;
+    ta.addEventListener('input', () => {
+      seg.text = ta.value;
+      ta.style.height = 'auto';
+      ta.style.height = ta.scrollHeight + 'px';
+      scheduleDraftSave();
+    });
+    ta.addEventListener('blur', () => { if (currentIndex() === i) $('captionText').textContent = seg.text; });
+
+    row.append(cb, timeBox, ta);
+    list.appendChild(row);
+  });
+  updateMergeBtn();
+}
+
+/* ---------- 拆分 / 合并 ---------- */
+function splitSegment(i, btn) {
+  const seg = state.segments[i];
+  const row = btn.closest('.seg-item');
+  const ta = row.querySelector('.seg-text');
+  const pos = ta.selectionStart > 0 ? ta.selectionStart : Math.floor(ta.value.length / 2);
+  const head = seg.text.slice(0, pos).trim();
+  const tail = seg.text.slice(pos).trim();
+  if (!head || !tail) { showError('请先把光标放在要断开的两个字之间'); return; }
+  const ratio = pos / Math.max(seg.text.length, 1);
+  const mid = seg.start + (seg.end - seg.start) * ratio;
+  state.segments[i] = { start: seg.start, end: mid, text: head };
+  state.segments.splice(i + 1, 0, { start: mid, end: seg.end, text: tail });
+  renderSegments();
+  saveDraft();
+}
+
+function updateMergeBtn() {
+  const n = document.querySelectorAll('.seg-check:checked').length;
+  const btn = $('mergeSel');
+  btn.disabled = n < 2;
+  btn.textContent = `合并选中 (${n})`;
+}
+
+$('mergeSel').addEventListener('click', () => {
+  const picked = [];
+  document.querySelectorAll('.seg-item').forEach((row) => {
+    if (row.querySelector('.seg-check').checked) picked.push(Number(row.dataset.index));
+  });
+  if (picked.length < 2) return;
+  picked.sort((a, b) => a - b);
+  const first = state.segments[picked[0]], last = state.segments[picked[picked.length - 1]];
+  const text = picked.map((k) => state.segments[k].text.trim()).join('');
+  const merged = { start: first.start, end: last.end, text };
+  state.segments = state.segments.filter((_, k) => !picked.includes(k));
+  state.segments.splice(picked[0], 0, merged);
+  renderSegments();
+  saveDraft();
+});
+
+/* ---------- 时间调整 / 整体偏移 ---------- */
+function adjustSegment(i, op) {
+  const seg = state.segments[i];
+  if (op === 'shiftBack') { seg.start = Math.max(0, seg.start - 0.1); seg.end = Math.max(seg.start + 0.1, seg.end - 0.1); }
+  if (op === 'shiftFwd') { seg.start += 0.1; seg.end += 0.1; }
+  if (op === 'shrink') { seg.end = Math.max(seg.start + 0.1, seg.end - 0.1); }
+  if (op === 'stretch') { seg.end += 0.1; }
+  renderSegments();
+  saveDraft();
+}
+
+$('applyOffset').addEventListener('click', () => {
+  const d = parseFloat($('timeOffset').value);
+  if (isNaN(d)) return;
+  state.segments.forEach((seg) => {
+    seg.start = Math.max(0, seg.start + d);
+    seg.end = Math.max(seg.start + 0.1, seg.end + d);
+  });
+  state.segments.sort((a, b) => a.start - b.start);
+  renderSegments();
+  saveDraft();
+});
+$('clearOffset').addEventListener('click', () => { $('timeOffset').value = 0; });
+
+/* ---------- 导出 ---------- */
+function enableExport(on) {
+  $('exportSrt').disabled = !on;
+  $('exportTxt').disabled = !on;
+}
+
+async function doExport(format) {
+  if (!state.segments.length) { showError('字幕内容为空'); return; }
+  try {
+    const res = await fetch('/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ segments: state.segments, format }),
+    });
+    if (!res.ok) {
+      let d = null; try { d = await res.json(); } catch (e) {}
+      throw new Error((d && d.detail) || `导出失败 (HTTP ${res.status})`);
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = format === 'txt' ? 'subtitles.txt' : 'subtitles.srt';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  } catch (err) {
+    showError(err.message || String(err));
+  }
+}
+$('exportSrt').addEventListener('click', () => doExport('srt'));
+$('exportTxt').addEventListener('click', () => doExport('txt'));
+
+/* ---------- 预览联动 ---------- */
+function currentIndex() {
+  const t = $('video').currentTime;
+  for (let i = 0; i < state.segments.length; i++) {
+    const s = state.segments[i];
+    if (t >= s.start && t < s.end) return i;
+  }
+  return -1;
+}
+$('video').addEventListener('timeupdate', () => {
+  const i = currentIndex();
+  $('captionText').textContent = i >= 0 ? state.segments[i].text : '';
+  document.querySelectorAll('.seg-item').forEach((row, k) =>
+    row.classList.toggle('current', k === i));
+});
+
+/* ---------- 草稿（localStorage）---------- */
+const DRAFT_KEY = 'yijian_zimu_draft_v1';
+let draftTimer = null;
+function saveDraft() {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state.segments)); } catch (e) {}
+}
+function scheduleDraftSave() {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(saveDraft, 800);
+}
+function loadDraft() {
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY));
+    return Array.isArray(d) && d.length ? d : null;
+  } catch (e) { return null; }
+}
+(function restoreDraft() {
+  const d = loadDraft();
+  if (!d) return;
+  state.segments = d;
+  const box = $('draftBox');
+  box.innerHTML = `已恢复上次校对的字幕（共 ${d.length} 条），可直接导出；如需画面预览请重新导入原视频。`;
+  const clear = document.createElement('button');
+  clear.className = 'mini'; clear.textContent = '清除草稿';
+  clear.addEventListener('click', () => {
+    localStorage.removeItem(DRAFT_KEY);
+    state.segments = [];
+    box.classList.remove('show');
+    renderSegments(); enableExport(false);
+  });
+  box.appendChild(clear);
+  box.classList.add('show');
+  renderSegments(); enableExport(true);
+})();
+
+/* 启动时查询模型状态 */
+fetch('/api/model').then(r => r.json()).then((m) => {
+  if (m && m.loaded) $('modelTag').textContent = `Whisper ${m.model_size} · ${String(m.device).toUpperCase()}`;
+  else $('modelTag').textContent = '模型将在首次识别时加载';
+}).catch(() => {});
+</script>
+</body>
+</html>

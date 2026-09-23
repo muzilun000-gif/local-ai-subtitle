@@ -1,0 +1,39 @@
+# ===== 运行时数据（不入库）=====
+data/
+
+# 兜底媒体文件
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+*.wmv
+*.flv
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.aac
+
+# ===== Python =====
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# ===== 日志 / 临时 =====
+*.log
+*.tmp
+*.bak
+_check.*
+~$*
+
+# ===== 测试媒体（保留脚本）=====
+tests/*.mp3
+tests/*.mp4
+tests/*.wav
+
+# ===== 系统文件 =====
+.DS_Store
+Thumbs.db
+desktop.ini

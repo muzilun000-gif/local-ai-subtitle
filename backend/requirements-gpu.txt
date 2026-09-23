@@ -1,0 +1,4 @@
+# 可选：NVIDIA GPU 加速（仅 Windows/Linux 桌面且有 N 卡时安装）
+# 安装后程序会自动尝试 CUDA，失败自动回退 CPU
+nvidia-cublas-cu12
+nvidia-cudnn-cu12
