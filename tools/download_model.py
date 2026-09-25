@@ -15,8 +15,19 @@
 import sys
 from pathlib import Path
 
+# faster-whisper 支持的常用规格；传错名字时 HuggingFace 会 404，不如提前拦住
+KNOWN_SIZES = (
+    "tiny", "tiny.en", "base", "base.en", "small", "small.en",
+    "medium", "medium.en", "large-v1", "large-v2", "large-v3", "large-v3-turbo",
+)
+
 
 def main(size: str = "small") -> None:
+    if size not in KNOWN_SIZES:
+        print(f"未知的模型规格: {size}")
+        print("可用规格: " + ", ".join(KNOWN_SIZES))
+        sys.exit(2)
+
     root = Path(__file__).resolve().parent.parent / "data" / "models"
     target = root / f"models--Systran--faster-whisper-{size}"
     target.mkdir(parents=True, exist_ok=True)
@@ -28,10 +39,11 @@ def main(size: str = "small") -> None:
         f"Systran/faster-whisper-{size}",
         local_dir=str(target),
     )
-    if not (target / "model.bin").exists():
-        print("警告: 未找到 model.bin，请检查网络后重试")
+    model_bin = target / "model.bin"
+    if not model_bin.exists() or model_bin.stat().st_size == 0:
+        print("警告: 未找到有效的 model.bin，请检查网络后重试")
         sys.exit(1)
-    print("完成。现在可以离线使用了。")
+    print(f"完成（model.bin {model_bin.stat().st_size / 1024 / 1024:.0f} MB）。现在可以离线使用了。")
 
 
 if __name__ == "__main__":

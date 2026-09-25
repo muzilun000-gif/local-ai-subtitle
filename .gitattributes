@@ -1,0 +1,19 @@
+# 统一换行符处理
+#
+# 关键：Windows 批处理文件必须是 CRLF 换行。
+# 若检出成 LF，cmd 下 if(...) / for 等括号块会解析失败，
+# 所以这里强制 *.bat 检出时用 CRLF，不受使用者本机 autocrlf 配置影响。
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 其余文本文件按仓库内的 LF 存储，检出时用平台默认
+* text=auto
+
+# 二进制文件不做任何转换
+*.otf binary
+*.ttf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.zip binary

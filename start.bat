@@ -1,11 +1,33 @@
 @echo off
-cd /d %~dp0
+chcp 936 >nul 2>nul
+cd /d "%~dp0"
 set PYTHONUTF8=1
+
 if not exist .venv\Scripts\python.exe (
-  echo æœªæ‰¾åˆ° .venvï¼Œè¯·å…ˆæŒ‰ README.md å®Œæˆå®‰è£…ã€‚
+  echo [´íÎó] Î´ÕÒµ½ .venv ĞéÄâ»·¾³¡£
+  echo ÇëÏÈ°´ README.md Íê³É°²×°:
+  echo     python -m venv .venv
+  echo     .venv\Scripts\pip install -r backend\requirements.txt
+  echo     .venv\Scripts\python tools\download_model.py small
   pause
-  exit /b
+  exit /b 1
 )
+
+echo ÕıÔÚÆô¶¯±¾µØ·şÎñ...
+start "Ò»¼ü×ÖÄ»·şÎñ" .venv\Scripts\python.exe backend\main.py
+
+echo ÕıÔÚµÈ´ı·şÎñ¾ÍĞ÷£¨Ê×´ÎÆô¶¯ĞèÒª¼¸Ãë£©...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "for($i=0;$i -lt 120;$i++){$c=New-Object Net.Sockets.TcpClient;try{$c.Connect('127.0.0.1',8081);$c.Close();exit 0}catch{Start-Sleep -Milliseconds 500}};exit 1"
+
+if errorlevel 1 (
+  echo [¾¯¸æ] µÈ´ı·şÎñ³¬Ê±¡£
+  echo Çë²é¿´¡¸Ò»¼ü×ÖÄ»·şÎñ¡¹´°¿ÚÀïµÄ±¨´íĞÅÏ¢£¬»òÊÖ¶¯·ÃÎÊ http://127.0.0.1:8081
+  pause
+  exit /b 1
+)
+
+echo ·şÎñÒÑ¾ÍĞ÷£¬ÕıÔÚ´ò¿ªä¯ÀÀÆ÷...
 start "" http://127.0.0.1:8081
-.venv\Scripts\python.exe backend\main.py
+echo.
+echo Ê¹ÓÃÍê±Ïºó, ¹Ø±Õ¡¸Ò»¼ü×ÖÄ»·şÎñ¡¹´°¿Ú¼´¿ÉÍ£Ö¹·şÎñ¡£
 pause

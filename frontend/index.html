@@ -244,7 +244,7 @@ async function apiFetch(url, options = {}, timeoutMs = 0) {
   }
 }
 
-const state = { segments: [], videoURL: null, jobId: null };
+const state = { segments: [], videoURL: null, jobId: null, videoName: '' };
 
 /* ---------- 导入与识别 ---------- */
 const zone = $('uploadZone'), fileInput = $('fileInput');
@@ -278,10 +278,14 @@ async function startProcess(file) {
 
     state.segments = data.segments;
     state.jobId = data.job_id;
+    state.videoName = file.name;
+    // 只有确认草稿来自同一个视频、且条数一致时才提示恢复,否则会把上一个视频的
+    // 校对文字套到当前视频上(条数撞车时尤其危险)
     const draft = loadDraft();
-    if (draft && draft.length === state.segments.length
-        && confirm('检测到上次校对的字幕（共 ' + draft.length + ' 条），是否恢复校对文字？')) {
-      state.segments.forEach((s, i) => { s.text = draft[i].text; });
+    if (draft && draft.segments.length === state.segments.length
+        && draft.name === file.name
+        && confirm(`检测到《${file.name}》上次校对的字幕（共 ${draft.segments.length} 条），是否恢复校对文字？`)) {
+      state.segments.forEach((s, i) => { s.text = draft.segments[i].text; });
     }
     $('modelTag').textContent = `Whisper ${data.model.model_size} · ${data.language} · ${String(data.model.device).toUpperCase()}`;
     $('draftBox').classList.remove('show');
@@ -401,7 +405,12 @@ $('mergeSel').addEventListener('click', () => {
 /* ---------- 时间调整 / 整体偏移 ---------- */
 function adjustSegment(i, op) {
   const seg = state.segments[i];
-  if (op === 'shiftBack') { seg.start = Math.max(0, seg.start - 0.1); seg.end = Math.max(seg.start + 0.1, seg.end - 0.1); }
+  if (op === 'shiftBack') {
+    // 整句前移, 保持时长; 已经到 0 秒就不再动(否则会只缩时长, 越点越短)
+    const back = Math.min(0.1, seg.start);
+    seg.start -= back;
+    seg.end -= back;
+  }
   if (op === 'shiftFwd') { seg.start += 0.1; seg.end += 0.1; }
   if (op === 'shrink') { seg.end = Math.max(seg.start + 0.1, seg.end - 0.1); }
   if (op === 'stretch') { seg.end += 0.1; }
@@ -411,11 +420,18 @@ function adjustSegment(i, op) {
 
 $('applyOffset').addEventListener('click', () => {
   const d = parseFloat($('timeOffset').value);
-  if (isNaN(d)) return;
-  state.segments.forEach((seg) => {
-    seg.start = Math.max(0, seg.start + d);
-    seg.end = Math.max(seg.start + 0.1, seg.end + d);
-  });
+  if (isNaN(d) || !d) return;
+  if (!state.segments.length) { showError('还没有字幕可以偏移'); return; }
+  // 整体偏移必须保持相对时序: 以最早一句为界取可用的最大负偏移,
+  // 否则开头几句会被 clamp 到 0 秒、时长被压扁, 字幕和画面对不上
+  const minStart = Math.min(...state.segments.map((s) => s.start));
+  const dEff = Math.max(d, -minStart);
+  if (Math.abs(dEff - d) > 1e-6) {
+    showError(`为保证字幕不被压到 0 秒，实际偏移 ${dEff.toFixed(1)} 秒（最早一句在 ${minStart.toFixed(1)} 秒处）`);
+  } else {
+    hideError();
+  }
+  state.segments.forEach((seg) => { seg.start += dEff; seg.end += dEff; });
   state.segments.sort((a, b) => a.start - b.start);
   renderSegments();
   saveDraft();
@@ -473,7 +489,14 @@ $('video').addEventListener('timeupdate', () => {
 const DRAFT_KEY = 'yijian_zimu_draft_v1';
 let draftTimer = null;
 function saveDraft() {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(state.segments)); } catch (e) {}
+  try {
+    // 连视频文件名一起存: 恢复时要能确认草稿属于当前视频, 避免串稿
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      name: state.videoName || '',
+      savedAt: Date.now(),
+      segments: state.segments,
+    }));
+  } catch (e) {}
 }
 function scheduleDraftSave() {
   clearTimeout(draftTimer);
@@ -482,20 +505,26 @@ function scheduleDraftSave() {
 function loadDraft() {
   try {
     const d = JSON.parse(localStorage.getItem(DRAFT_KEY));
-    return Array.isArray(d) && d.length ? d : null;
+    if (!d) return null;
+    if (Array.isArray(d)) return d.length ? { name: '', segments: d } : null;  // 兼容旧格式
+    if (Array.isArray(d.segments) && d.segments.length) return d;
+    return null;
   } catch (e) { return null; }
 }
 (function restoreDraft() {
   const d = loadDraft();
   if (!d) return;
-  state.segments = d;
+  state.segments = d.segments;
+  state.videoName = d.name || '';
   const box = $('draftBox');
-  box.innerHTML = `已恢复上次校对的字幕（共 ${d.length} 条），可直接导出；如需画面预览请重新导入原视频。`;
+  const src = d.name ? `《${d.name}》的` : '上次的';
+  box.innerHTML = `已恢复${src}校对字幕（共 ${d.segments.length} 条），可直接导出；如需画面预览请重新导入原视频。`;
   const clear = document.createElement('button');
   clear.className = 'mini'; clear.textContent = '清除草稿';
   clear.addEventListener('click', () => {
     localStorage.removeItem(DRAFT_KEY);
     state.segments = [];
+    state.videoName = '';
     box.classList.remove('show');
     renderSegments(); enableExport(false);
   });
