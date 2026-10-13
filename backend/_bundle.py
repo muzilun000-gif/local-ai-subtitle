@@ -9,6 +9,7 @@ PyInstaller onedir 布局:
     └── ffmpeg/bin/         <- ffmpeg/ffprobe(随包分发)
 """
 import sys
+import shutil
 from pathlib import Path
 
 
@@ -31,6 +32,15 @@ def tool_exe(name: str) -> str:
     exe = ffmpeg_dir() / f"{name}.exe"
     if exe.exists():
         return str(exe)
+    system = shutil.which(name)
+    if system:
+        return system
+    if name == "ffmpeg":
+        try:
+            import imageio_ffmpeg
+            return imageio_ffmpeg.get_ffmpeg_exe()
+        except (ImportError, RuntimeError):
+            pass
     return name
 
 

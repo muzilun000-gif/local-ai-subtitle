@@ -1,0 +1,23 @@
+name: Windows and macOS real subtitle flow
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  smoke:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - if: runner.os == 'Windows'
+        run: .\start.bat --setup-only --model tiny
+      - if: runner.os == 'macOS'
+        run: bash start-mac.command --setup-only --model tiny
+      - if: runner.os == 'Windows'
+        run: .venv\Scripts\python tools\smoke.py
+      - if: runner.os == 'macOS'
+        run: .venv/bin/python tools/smoke.py

@@ -17,9 +17,13 @@ data/
 
 # ===== Python =====
 .venv/
+.venv-mac/
 venv/
 __pycache__/
 *.pyc
+
+# ===== 启动时自动生成的 ffmpeg 转发脚本（start-mac.command 每次启动重建）=====
+.bin/
 
 # ===== 日志 / 临时 =====
 *.log
@@ -37,3 +41,6 @@ tests/*.wav
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Original public demo fixture, not user media
+!docs/demo-input.mp4
