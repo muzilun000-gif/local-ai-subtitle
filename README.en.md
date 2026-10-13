@@ -24,7 +24,7 @@ Use `--model base` for a smaller model or `--port 8091` for a different port. Ke
 
 [Original synthetic-voice video](docs/demo-input.mp4) · [SRT exported after punctuation correction](docs/demo-output.srt).
 
-Mac/Apple Silicon/Python 3.13 has passed a real import, recognition, edit, SRT and TXT export check. Windows CI is configured but has not run yet. No claim is made about every GPU, codec or editing application. Accuracy and speed depend on speech, model and hardware.
+Mac/Apple Silicon/Python 3.13 has passed a real import, recognition, edit, SRT and TXT export check. Windows and macOS CI have passed first setup, real speech recognition, and SRT/TXT export using Python 3.12 and the tiny model. [CI evidence](https://github.com/muzilun000-gif/local-ai-subtitle/actions/runs/38444491651). No claim is made about every GPU, codec or editing application. Accuracy and speed depend on speech, model and hardware.
 
 ## Features
 

@@ -37,7 +37,7 @@ py -3.12 tools\launch.py
 
 `docs/demo-input.mp4` 是原创合成语音测试片段；`docs/demo-output.srt` 是通过本工具识别后，人工修改标点、拆分为三句并由界面实际下载的字幕。截图来自同一流程，没有用静态假数据伪装识别成功。
 
-**本轮验证：Mac / Apple Silicon / Python 3.13，完成导入、本地识别、校对及 SRT/TXT 导出。Windows 测试配置已提供，云端尚未运行，不把它写成已通过。**
+**本轮验证：Mac / Apple Silicon / Python 3.13，完成导入、本地识别、校对及 SRT/TXT 导出。Windows 和 macOS 云端均已通过首次安装、真实语音识别及 SRT/TXT 导出检查（Python 3.12、tiny 模型）。[查看云端结果](https://github.com/muzilun000-gif/local-ai-subtitle/actions/runs/38444491651)。GPU 和各剪辑软件未逐一验收。**
 
 ## 功能与边界
 
