@@ -42,7 +42,7 @@ if is_bundled():
     except Exception:
         pass
 
-app = FastAPI(title="一键字幕（开源版）API")
+app = FastAPI(title="声序 · 本地 AI 字幕工作台 API")
 app.add_middleware(
     CORSMiddleware,
     # Origin 必须带 scheme, 写成 "127.0.0.1" 是匹配不上的; 端口可能自定义, 故用正则
@@ -50,6 +50,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/api/health")
+async def health():
+    return {"app_id": "local-ai-subtitle", "status": "ok"}
+
+
+@app.middleware("http")
+async def no_cache_html(request, call_next):
+    """HTML 一律不缓存。
+
+    StaticFiles 只发 etag / last-modified, 不发 Cache-Control。浏览器遇到这种
+    响应会走「启发式缓存」(按 last-modified 起算 10% 的时间当保鲜期),
+    于是改完前端刷新页面还是旧界面。
+
+    只对 text/html 生效: 视频/字体这些大文件保持可缓存, 不影响拖动进度条。
+    """
+    response = await call_next(request)
+    if response.headers.get("content-type", "").startswith("text/html"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
 
 
 class Segment(BaseModel):

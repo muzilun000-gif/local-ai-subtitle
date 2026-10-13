@@ -1,33 +1,27 @@
 @echo off
-chcp 936 >nul 2>nul
 cd /d "%~dp0"
 set PYTHONUTF8=1
-
-if not exist .venv\Scripts\python.exe (
-  echo [错误] 未找到 .venv 虚拟环境。
-  echo 请先按 README.md 完成安装:
-  echo     python -m venv .venv
-  echo     .venv\Scripts\pip install -r backend\requirements.txt
-  echo     .venv\Scripts\python tools\download_model.py small
-  pause
-  exit /b 1
-)
-
-echo 正在启动本地服务...
-start "一键字幕服务" .venv\Scripts\python.exe backend\main.py
-
-echo 正在等待服务就绪（首次启动需要几秒）...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "for($i=0;$i -lt 120;$i++){$c=New-Object Net.Sockets.TcpClient;try{$c.Connect('127.0.0.1',8081);$c.Close();exit 0}catch{Start-Sleep -Milliseconds 500}};exit 1"
-
+set PY_VER=
+where py >nul 2>nul
+if errorlevel 1 goto check_python
+for %%V in (3.12 3.11 3.13 3.10) do if not defined PY_VER call :probe %%V
+if defined PY_VER goto use_py
+:check_python
+python -c "import sys; sys.exit(0 if (3,10) <= sys.version_info[:2] <= (3,13) else 1)" >nul 2>nul
 if errorlevel 1 (
-  echo [警告] 等待服务超时。
-  echo 请查看「一键字幕服务」窗口里的报错信息，或手动访问 http://127.0.0.1:8081
+  echo Please install Python 3.11 or 3.12: https://www.python.org/downloads/
   pause
   exit /b 1
 )
-
-echo 服务已就绪，正在打开浏览器...
-start "" http://127.0.0.1:8081
-echo.
-echo 使用完毕后, 关闭「一键字幕服务」窗口即可停止服务。
-pause
+python tools\launch.py %*
+goto done
+:use_py
+py -%PY_VER% tools\launch.py %*
+:done
+set RESULT=%ERRORLEVEL%
+if not "%RESULT%"=="0" pause
+exit /b %RESULT%
+:probe
+py -%1 -c "import sys" >nul 2>nul
+if not errorlevel 1 set PY_VER=%1
+exit /b 0

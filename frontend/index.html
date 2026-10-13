@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>一键字幕（开源版）· 本地离线 AI 字幕工具</title>
+<title>声序 · 本地 AI 字幕工作台</title>
 <style>
   @font-face {
     font-family: "Source Han Sans SC";
@@ -57,6 +57,8 @@
   .upload-zone:hover, .upload-zone.drag {
     border-color: var(--accent); background: var(--accent-soft); color: var(--accent);
   }
+  /* 导入视频后收起上传区: 否则窄屏下预览区会撑高, 把右侧编辑区顶到屏幕外 */
+  .upload-zone.hidden { display: none; }
   .upload-zone .big { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
   .upload-zone .hint { font-size: 12.5px; }
   .progress-wrap { margin: 16px; display: none; }
@@ -126,10 +128,11 @@
   .split-btn:hover { color: var(--accent); }
   .seg-time-adjust { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
   .ta-btn {
-    font-size: 10.5px; padding: 2px 5px; border: 1px solid var(--border);
-    border-radius: 4px; background: none; color: var(--muted); cursor: pointer; line-height: 1.3;
+    font-size: 11px; padding: 3px 7px; border: 1px solid var(--border);
+    border-radius: 5px; background: #fff; color: #4b5563; cursor: pointer; line-height: 1.3;
   }
   .ta-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .ta-btn:active { background: var(--accent-soft); }
   .seg-text {
     width: 100%; border: 1px solid transparent; background: transparent;
     padding: 5px 8px; font-size: 13.5px; color: var(--text);
@@ -156,20 +159,25 @@
   @media (max-width: 900px) {
     .layout { grid-template-columns: 1fr; padding: 14px; }
     .seg-list { max-height: 400px; }
+    /* 单列布局时压低预览高度, 避免编辑区被顶出可视范围 */
+    .stage video { max-height: 240px; }
   }
 </style>
 </head>
 <body>
 
 <header class="topbar">
-  <h1>一键字幕 <span style="font-size:12px;color:var(--muted);font-weight:400;">开源版 · 本地离线</span></h1>
+  <h1>声序 <span style="font-size:12px;color:var(--muted);font-weight:400;">本地 AI 字幕工作台</span></h1>
   <span class="model-tag" id="modelTag">模型未加载</span>
 </header>
 
 <main class="layout">
   <section>
     <div class="panel">
-      <div class="panel-head"><span>视频预览</span></div>
+      <div class="panel-head">
+        <span>视频预览</span>
+        <button class="mini" id="reselectBtn" style="display:none;">重新选择文件</button>
+      </div>
       <div class="upload-zone" id="uploadZone">
         <div class="big">点击或拖入视频 / 音频文件</div>
         <div class="hint">mp4 / mov / mkv / webm / mp3 / wav · 全程本地处理，视频不上传</div>
@@ -196,7 +204,7 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="editPanel">
     <div class="panel-head">
       <span>字幕编辑 <span id="segCount" style="color:var(--muted);font-weight:400;font-size:12px;"></span></span>
       <span class="seg-tools">
@@ -259,6 +267,17 @@ fileInput.addEventListener('change', () => {
   if (fileInput.files.length) startProcess(fileInput.files[0]);
   fileInput.value = '';
 });
+$('reselectBtn').addEventListener('click', () => fileInput.click());
+
+/* 窄屏为单列布局, 编辑区会被预览区顶到屏幕外; 识别完成后主动滚过去,
+   否则用户以为"调整按钮不见了" */
+function scrollEditIntoView() {
+  const panel = $('editPanel');
+  if (!panel) return;
+  if (panel.getBoundingClientRect().top > window.innerHeight * 0.4) {
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
 
 async function startProcess(file) {
   hideError();
@@ -272,6 +291,8 @@ async function startProcess(file) {
     state.videoURL = URL.createObjectURL(file);
     $('video').src = state.videoURL;
     $('stage').classList.add('show');
+    $('uploadZone').classList.add('hidden');
+    $('reselectBtn').style.display = '';
 
     const data = await apiFetch('/api/upload', { method: 'POST', body: fd }, 600000);
     if (!data) throw new Error('识别失败');
@@ -292,8 +313,14 @@ async function startProcess(file) {
     renderSegments();
     enableExport(true);
     saveDraft();
+    scrollEditIntoView();
   } catch (err) {
     showError(err.message || String(err));
+    // 识别失败且没有旧字幕时, 把上传区放回来, 否则用户无处可点
+    if (!state.segments.length) {
+      $('uploadZone').classList.remove('hidden');
+      $('reselectBtn').style.display = 'none';
+    }
   } finally {
     $('progressWrap').classList.remove('show');
   }
@@ -367,7 +394,11 @@ function splitSegment(i, btn) {
   const seg = state.segments[i];
   const row = btn.closest('.seg-item');
   const ta = row.querySelector('.seg-text');
-  const pos = ta.selectionStart > 0 ? ta.selectionStart : Math.floor(ta.value.length / 2);
+  // 刚渲染完的 textarea 光标停在末尾(selectionStart === 长度), 此时没有有效断点,
+  // 必须回退到中点; 否则 head 会拿到全文、tail 为空, 直接报错拆不开
+  const pos = ta.selectionStart > 0 && ta.selectionStart < ta.value.length
+    ? ta.selectionStart
+    : Math.floor(ta.value.length / 2);
   const head = seg.text.slice(0, pos).trim();
   const tail = seg.text.slice(pos).trim();
   if (!head || !tail) { showError('请先把光标放在要断开的两个字之间'); return; }
