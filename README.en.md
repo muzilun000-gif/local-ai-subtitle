@@ -6,6 +6,8 @@ Import video/audio, transcribe locally with Whisper, correct text and timing, an
 
 ![Real transcription and editing screen](docs/screenshot.png)
 
+![Real workflow screenshot steps](docs/demo-flow.gif)
+
 ## Windows and macOS
 
 Install Python 3.11 or 3.12 first (supported range: 3.10–3.13), download the ZIP and extract the complete folder. This is a source launcher, not a standalone EXE/DMG.
